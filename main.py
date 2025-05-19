@@ -23,7 +23,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 from tqdm import tqdm
-import pickle
 
 if __name__ == "__main__":
     tags, texts = divide_dataset("Data/dataset.txt", lines=10000)
