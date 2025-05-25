@@ -10,6 +10,18 @@
 3. 相似度矩阵计算
 4. 降维与分类建模
 5. 模型评估
+
+
+- Author: BIGHH <1448545037@qq.com>
+- Date:   Mon May 26 2025
+- 新增内容
+- 找到了更大的数据集
+- 增加样本平衡机制，可以提高正确率和召回率，设置0.5~1.0之间
+- 后期提升主要靠分类模型参数量的增加，例如全连接层从128-》256，能力迅速增强。
+- 为解决分类器速度问题，使用GPU版本加速
+- 调整PCA维度，143可以表征95%的信息
+
+
 """
 
 from data_processing import divide_dataset, count_chinese_characters, load_chinese_characters
@@ -24,10 +36,19 @@ from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 from tqdm import tqdm
 from sklearn.neural_network import MLPClassifier
+from imblearn.over_sampling import RandomOverSampler
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+
+import matplotlib.pyplot as plt
+
 
 if __name__ == "__main__":
    # 1. 加载标签和文本（数据集划分）
-    tags, texts = divide_dataset("Data/dataset.txt", lines=16000)
+   #dataset 16k  dataset_new 800k
+    tags, texts = divide_dataset("Data/dataset_new.txt", lines=160000)
     
     # 2. 加载或统计汉字及其编码
     try:  
@@ -41,8 +62,17 @@ if __name__ == "__main__":
     except FileNotFoundError:
         sim_mat = compute_sim_mat(chinese_chars, char_codes)
     
+    # 分析 PCA 的累计解释方差
+    # pca_full = PCA().fit(sim_mat)
+    # explained_var_ratio = np.cumsum(pca_full.explained_variance_ratio_)
+    # threshold = 0.95
+    # recommended_dims = np.argmax(explained_var_ratio >= threshold) + 1
+    # print(f"建议使用的 PCA 降维维度: {recommended_dims}（可保留 {threshold*100:.0f}% 的信息）")
+
+
+    
     # 4. 对相似度矩阵进行PCA降维（得到每个汉字的向量表示）
-    pca = PCA(n_components=100)
+    pca = PCA(n_components=150)
     char_embeddings = pca.fit_transform(sim_mat)
     
     # 建立汉字到向量索引的映射
@@ -64,31 +94,137 @@ if __name__ == "__main__":
     le = LabelEncoder()
     y = le.fit_transform(tags)
     
+    
     # 划分训练集与测试集
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=42
     )
     
-    model = make_pipeline(
-        StandardScaler(),
-        MLPClassifier(
-            hidden_layer_sizes=(128, 64),  # 2层：128 -> 64
-            activation="relu",
-            solver="adam",
-            batch_size=64,
-            max_iter=20,
-            early_stopping=True,
-            random_state=42
-        )
-        #LogisticRegression(max_iter=1000, class_weight='balanced')
+    # 进行训练集的过采样（样本平衡）
+    oversampler = RandomOverSampler(sampling_strategy=0.7, random_state=42)
+    X_train, y_train = oversampler.fit_resample(X_train, y_train)
+    unique, counts = np.unique(y_train, return_counts=True)
+    label_counts = dict(zip(unique, counts))
+    print("训练集中每个标签的样本数量:")
+    for label, count in label_counts.items():
+        print(f"标签 {label}: {count} 条样本")
+    print("完成样本平衡")
+    
+    # model = make_pipeline(
+    #     StandardScaler(),
+    #     MLPClassifier(
+    #         hidden_layer_sizes=(128, 64),  # 2层：128 -> 64
+    #         activation="relu",
+    #         solver="adam",
+    #         batch_size=64,
+    #         max_iter=40,
+    #         early_stopping=True,
+    #         random_state=42,
+    #         verbose=True
+    #     )
+    #     #LogisticRegression(max_iter=1000, class_weight='balanced')
+    # )
+
+
+    
+    # model.fit(X_train, y_train)
+    
+    # print("完成训练")
+    
+    
+    # y_pred = model.predict(X_test)
+    
+    # print("\n分类报告:")
+    # print(classification_report(y_test, y_pred, target_names=le.classes_))
+    # print("\n混淆矩阵:")
+    # print(confusion_matrix(y_test, y_pred))
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ###########GPU训练
+    # 设置随机种子
+    torch.manual_seed(42)
+    np.random.seed(42)
+    # 归一化
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+    # 转为 Tensor
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+
+    # 数据加载器
+    # train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=64, shuffle=True)
+    train_loader = DataLoader(
+    TensorDataset(X_train_tensor, y_train_tensor),
+    batch_size=1024,
+    shuffle=True,
+    num_workers=16,   # 加速数据加载
+    pin_memory=True, # 推荐用于 GPU 模型
+    prefetch_factor=4
     )
 
+    # 定义 MLP 模型
+    class MLP(nn.Module):
+        def __init__(self, input_dim, hidden1=256, hidden2=128, output_dim=2):
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, hidden1),
+                nn.BatchNorm1d(hidden1),
+                nn.ReLU(),
+                nn.Dropout(0.3),           # 添加 dropout
+                nn.Linear(hidden1, hidden2),
+                nn.BatchNorm1d(hidden2),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(hidden2, output_dim)
+            )
 
-    
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    
+        def forward(self, x):
+            return self.net(x)
+
+    # 使用 GPU（如可用）
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"使用设备: {device}")
+
+    model = MLP(input_dim=X.shape[1], output_dim=len(le.classes_)).to(device)
+
+    # 损失函数与优化器
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    # 训练模型
+    for epoch in range(60):
+        model.train()
+        total_loss = 0
+        for xb, yb in train_loader:
+            xb, yb = xb.to(device), yb.to(device)
+            optimizer.zero_grad()
+            outputs = model(xb)
+            loss = criterion(outputs, yb)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print(f"Epoch {epoch+1}, Loss: {total_loss:.4f}")
+
+    print("完成训练")
+
+    # 推理与评估
+    model.eval()
+    with torch.no_grad():
+        logits = model(X_test_tensor.to(device))
+        y_pred = torch.argmax(logits, dim=1).cpu().numpy()
+
     print("\n分类报告:")
     print(classification_report(y_test, y_pred, target_names=le.classes_))
     print("\n混淆矩阵:")
     print(confusion_matrix(y_test, y_pred))
+    
