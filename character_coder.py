@@ -264,7 +264,16 @@ class ChineseCharacterCoder:
 
     def generate_glyph_code(self, hanzi):
         # 获取汉字的结构
-        structure_code = self.structure_dict[hanzi]
+        #structure_code = self.structure_dict[hanzi]
+        try:
+            # 尝试获取汉字的结构编码
+            structure_code = self.structure_dict[hanzi]
+        except KeyError:
+            # 如果字典中不存在该汉字，返回默认结构编码（例如 "0"）
+            structure_code = "0"
+            print("warning汉字",hanzi,"进行默认处理")
+            # 或者抛出异常（根据需求选择）
+            # raise ValueError(f"汉字 '{hanzi}' 的结构编码未定义！")
 
         # 获取汉字的四角编码
         fcc = FourCornerMethod().query(hanzi)
