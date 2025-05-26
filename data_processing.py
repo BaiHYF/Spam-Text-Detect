@@ -39,7 +39,14 @@ def divide_dataset(filename, lines=10000):
 
     subset = text_data[:lines]
     
-    dataset = [s.strip().split("\t") for s in subset]
+    #dataset = [s.strip().split("\t") for s in subset]
+    dataset = []
+    for i, line in enumerate(subset):
+        parts = line.strip().split("\t")
+        if len(parts) < 2 or not parts[1].strip():
+            print(f"[跳过] 第 {i} 行数据格式错误：{line.strip()}")
+            continue
+        dataset.append(parts)
     # dataset = [data for data in dataset if len(data) == 2 and data[1].strip()]
 
     tag = [data[0] for data in dataset]
@@ -116,3 +123,58 @@ def load_chinese_characters(filename):
         chinese_characters_count[char] = count
 
     return chinese_characters, chinese_characters_count, chinese_characters_code
+
+
+
+
+import os
+from collections import defaultdict
+
+def load_or_update_chinese_characters(content, output_file_path):
+    """
+    加载已有汉字编码文件，增量更新新出现的汉字，并返回完整的编码信息。
+
+    Args:
+        content (list[str]): 文本数据列表
+        output_file_path (str): 编码文件路径
+
+    Returns:
+        tuple: (汉字列表, 汉字计数字典, 汉字编码字典)
+    """
+    chinese_characters = []
+    chinese_characters_count = defaultdict(int)
+    chinese_characters_code = {}
+
+    # Step 1: 如果编码文件存在，先加载
+    if os.path.exists(output_file_path):
+        with open(output_file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                char, code, count = line.strip().split("\t")
+                chinese_characters.append(char)
+                chinese_characters_code[char] = code
+                chinese_characters_count[char] = int(count)
+
+    # Step 2: 统计当前文本中所有汉字频次
+    new_char_freq = defaultdict(int)
+    for line in tqdm(content, desc="Counting characters", unit="line"):
+        for char in line:
+            if "\u4e00" <= char <= "\u9fff":
+                new_char_freq[char] += 1
+
+    # Step 3: 增量更新：对新字符做编码并追加写入
+    with open(output_file_path, "a", encoding="utf-8") as f:
+        for char, count in tqdm(new_char_freq.items(), desc="Updating character code", unit="char"):
+            if char not in chinese_characters_code:
+                # 新字符 → 生成编码并写入文件
+                character_code = ChineseCharacterCoder().generate_character_code(char)
+                chinese_characters_code[char] = character_code
+                f.write(f"{char}\t{character_code}\t{count}\n")
+                chinese_characters.append(char)
+                chinese_characters_count[char] = count
+            else:
+                # 已存在 → 累加频次
+                chinese_characters_count[char] += count
+
+    print(f"[完成] 编码文件更新：{output_file_path}")
+    return chinese_characters, dict(chinese_characters_count), chinese_characters_code
+
