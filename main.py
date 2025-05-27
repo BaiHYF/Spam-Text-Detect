@@ -23,6 +23,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 from tqdm import tqdm
+import joblib
 
 if __name__ == "__main__":
     tags, texts = divide_dataset("Data/dataset.txt", lines=10000)
@@ -66,8 +67,16 @@ if __name__ == "__main__":
     
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
-    
+    print(len(y_pred))
     print("\n分类报告:")
     print(classification_report(y_test, y_pred, target_names=le.classes_))
     print("\n混淆矩阵:")
     print(confusion_matrix(y_test, y_pred))
+    
+    joblib.dump(model, 'model/model.pkl')
+    joblib.dump(pca, 'model/pca.pkl')
+    joblib.dump(le, 'model/label_encoder.pkl')
+    joblib.dump(char2idx, 'model/char2idx.pkl')
+    np.save('model/char_embeddings.npy', char_embeddings)
+    scaler = model.named_steps['standardscaler']
+    joblib.dump(scaler, 'model/scaler.pkl')
