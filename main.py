@@ -21,7 +21,6 @@
 - 为解决分类器速度问题，使用GPU版本加速
 - 调整PCA维度，143可以表征95%的信息
 
-
 """
 
 from data_processing import *
@@ -54,6 +53,7 @@ from imblearn.over_sampling import RandomOverSampler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, classification_report
 import sys
+import joblib
 
 from joblib import Parallel, delayed
 
@@ -67,7 +67,7 @@ def clean_text(dataset):
 
 # 停用词处理和文本分割
 def tokenize_and_remove_stopwords(dataset):
-    stopwords_file = '第四章/高阶示例/数据集/hit_stopwords.txt'
+    stopwords_file = 'Data/hit_stopwords.txt'
     with open(stopwords_file, 'r', encoding='utf-8') as file:
         stopwords = {line.strip() for line in file}
     tokenized_text = []
@@ -297,16 +297,16 @@ if __name__ == "__main__":
     #         word_vecs.append(np.mean(char_vecs, axis=0))
     
     '''5. 生成句子向量'''
+    test_em = text_to_embedding("感谢致电杭州萧山全金釜韩国烧烤店，本店位于金城路xxx号。韩式烧烤等，价格实惠、欢迎惠顾【全金釜韩国烧烤店】")
+    
     #X = np.array([text_to_embedding(text) for text in tqdm(texts, desc="文本向量化")])
     X = np.array(Parallel(n_jobs=32)(delayed(text_to_embedding)(text) for text in tqdm(texts, desc="并行向量化")))
     #X = np.array([text_to_embedding_self_attention(text, char_embeddings, char2idx, d=512)for text in tqdm(texts, desc="使用注意力生成句向量")])
     print(X.shape)
     
-    
     # 标签编码
     le = LabelEncoder()
     y = le.fit_transform(tags)
-    
     
     # 划分训练集与测试集
     X_train, X_test, y_train, y_test = train_test_split(
@@ -327,41 +327,44 @@ if __name__ == "__main__":
     for label, count in label_counts.items():
         print(f"标签 {label}: {count} 条样本")
     print("完成样本平衡")
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
     ########CPU版本
-    # model = make_pipeline(
-    #     StandardScaler(),
-    #     MLPClassifier(
-    #         hidden_layer_sizes=(128, 64),  # 2层：128 -> 64
-    #         activation="relu",
-    #         solver="adam",
-    #         batch_size=64,
-    #         max_iter=40,
-    #         early_stopping=True,
-    #         random_state=42,
-    #         verbose=True
-    #     )
-    #     #LogisticRegression(max_iter=1000, class_weight='balanced')
-    # )
+    model = make_pipeline(
+        StandardScaler(),
+        MLPClassifier(
+            hidden_layer_sizes=(128, 64),  # 2层：128 -> 64
+            activation="relu",
+            solver="adam",
+            batch_size=64,
+            max_iter=40,
+            early_stopping=True,
+            random_state=42,
+            verbose=True
+        )
+        #LogisticRegression(max_iter=1000, class_weight='balanced')
+    )
 
 
     
-    # model.fit(X_train, y_train)
+    model.fit(X_train, y_train)
     
-    # print("完成训练")
+    print("完成训练")
     
+    scaler = model.named_steps['standardscaler']
+    X_scaled = scaler.transform([test_em])
+    y_pred = model.predict(X_test)
+    proba = model.predict_proba(X_scaled)[0]
     
-    # y_pred = model.predict(X_test)
-    
-    # print("\n分类报告:")
-    # print(classification_report(y_test, y_pred, target_names=le.classes_))
-    # print("\n混淆矩阵:")
-    # print(confusion_matrix(y_test, y_pred))
+    print(proba)
+    print("\n分类报告:")
+    print(classification_report(y_test, y_pred, target_names=le.classes_))
+    print("\n混淆矩阵:")
+    print(confusion_matrix(y_test, y_pred))
     
     
     
@@ -373,119 +376,126 @@ if __name__ == "__main__":
     
     ###########GPU训练
     # 设置随机种子
-    torch.manual_seed(42)
-    np.random.seed(42)
-    load_existing_model=False
-    #torch.set_float32_matmul_precision('high')  #在 float32 矩阵乘法时，使用 TensorFloat32（TF32） 精度，能显著加快训练速度而不会明显影响模型精度。
-    # 使用 GPU（如可用）
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"使用设备: {device}")
+    # torch.manual_seed(42)
+    # np.random.seed(42)
+    # load_existing_model=False
+    # #torch.set_float32_matmul_precision('high')  #在 float32 矩阵乘法时，使用 TensorFloat32（TF32） 精度，能显著加快训练速度而不会明显影响模型精度。
+    # # 使用 GPU（如可用）
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # print(f"使用设备: {device}")
     
     
-    # 归一化
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    # 转为 Tensor
-    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
-    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+    # # 归一化
+    # scaler = StandardScaler()
+    # X_train = scaler.fit_transform(X_train)
+    # X_test = scaler.transform(X_test)
+    # # 转为 Tensor
+    # X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+    # y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+    # X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    # y_test_tensor = torch.tensor(y_test, dtype=torch.long)
     
-    # 计算类别权重，原理同oversampleing
-    # class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
-    # class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
-    # print("类别权重为",class_weights)
+    # # 计算类别权重，原理同oversampleing
+    # # class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
+    # # class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
+    # # print("类别权重为",class_weights)
 
 
-    # 数据加载器
-    train_loader = DataLoader(
-    TensorDataset(X_train_tensor, y_train_tensor),
-    batch_size=1024,
-    shuffle=True,
-    num_workers=16,   # 加速数据加载
-    pin_memory=True, # 推荐用于 GPU 模型
-    prefetch_factor=8,
-    persistent_workers=True #避免反复启动线程，提高训练速度
-    )
+    # # 数据加载器
+    # train_loader = DataLoader(
+    # TensorDataset(X_train_tensor, y_train_tensor),
+    # batch_size=1024,
+    # shuffle=True,
+    # num_workers=16,   # 加速数据加载
+    # pin_memory=True, # 推荐用于 GPU 模型
+    # prefetch_factor=8,
+    # persistent_workers=True #避免反复启动线程，提高训练速度
+    # )
 
-    # 定义 MLP 模型
-    class MLP(nn.Module):
-        def __init__(self, input_dim, hidden1=256, hidden2=128, output_dim=2):
-            super().__init__()
-            self.net = nn.Sequential(
-                nn.Linear(input_dim, hidden1),
-                nn.BatchNorm1d(hidden1),
-                nn.ReLU(),
-                nn.Dropout(0.4),           # 添加 dropout
-                nn.Linear(hidden1, hidden2),
-                nn.BatchNorm1d(hidden2),
-                nn.ReLU(),
-                nn.Dropout(0.4),
-                nn.Linear(hidden2, output_dim)
-            )
+    # # 定义 MLP 模型
+    # class MLP(nn.Module):
+    #     def __init__(self, input_dim, hidden1=256, hidden2=128, output_dim=2):
+    #         super().__init__()
+    #         self.net = nn.Sequential(
+    #             nn.Linear(input_dim, hidden1),
+    #             nn.BatchNorm1d(hidden1),
+    #             nn.ReLU(),
+    #             nn.Dropout(0.4),           # 添加 dropout
+    #             nn.Linear(hidden1, hidden2),
+    #             nn.BatchNorm1d(hidden2),
+    #             nn.ReLU(),
+    #             nn.Dropout(0.4),
+    #             nn.Linear(hidden2, output_dim)
+    #         )
 
-        def forward(self, x):
-            return self.net(x)
+    #     def forward(self, x):
+    #         return self.net(x)
 
 
-    model = MLP(input_dim=X.shape[1], output_dim=len(le.classes_)).to(device)
+    # model = MLP(input_dim=X.shape[1], output_dim=len(le.classes_)).to(device)
     
-    # if load_existing_model:
-    #     load_model(model)
-    #model = torch.compile(model)    #编译，以进一步提高速度
+    # # if load_existing_model:
+    # #     load_model(model)
+    # #model = torch.compile(model)    #编译，以进一步提高速度
     
-    # 损失函数与优化器
-    #criterion = nn.CrossEntropyLoss(weight=class_weights)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    # # 损失函数与优化器
+    # #criterion = nn.CrossEntropyLoss(weight=class_weights)
+    # criterion = nn.CrossEntropyLoss()
+    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    # 训练模型
-    for epoch in range(50):
-        model.train()
-        total_loss = 0
-        y_train_pred_all = []
-        y_train_true_all = []
+    # # 训练模型
+    # for epoch in range(50):
+    #     model.train()
+    #     total_loss = 0
+    #     y_train_pred_all = []
+    #     y_train_true_all = []
         
-        for xb, yb in train_loader:
-            xb, yb = xb.to(device,non_blocking=True), yb.to(device,non_blocking=True)   #异步传输
-            optimizer.zero_grad()
-            outputs = model(xb)
-            loss = criterion(outputs, yb)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-        #print(f"Epoch {epoch+1}, Loss: {total_loss:.4f}")
+    #     for xb, yb in train_loader:
+    #         xb, yb = xb.to(device,non_blocking=True), yb.to(device,non_blocking=True)   #异步传输
+    #         optimizer.zero_grad()
+    #         outputs = model(xb)
+    #         loss = criterion(outputs, yb)
+    #         loss.backward()
+    #         optimizer.step()
+    #         total_loss += loss.item()
+    #     #print(f"Epoch {epoch+1}, Loss: {total_loss:.4f}")
         
-        ####################添加更多调试信息##############################
-        # 收集训练预测结果
-        y_pred_batch = torch.argmax(outputs, dim=1).detach().cpu().numpy()
-        y_train_pred_all.extend(y_pred_batch)
-        y_train_true_all.extend(yb.cpu().numpy())
-        train_acc = accuracy_score(y_train_true_all, y_train_pred_all)
-        model.eval()
-        with torch.no_grad():
-            logits = model(X_test_tensor.to(device))
-            y_test_pred = torch.argmax(logits, dim=1).cpu().numpy()
-            test_acc = accuracy_score(y_test, y_test_pred)
-        print(f"Epoch {epoch+1}, Loss: {total_loss:.4f}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}")
+    #     ####################添加更多调试信息##############################
+    #     # 收集训练预测结果
+    #     y_pred_batch = torch.argmax(outputs, dim=1).detach().cpu().numpy()
+    #     y_train_pred_all.extend(y_pred_batch)
+    #     y_train_true_all.extend(yb.cpu().numpy())
+    #     train_acc = accuracy_score(y_train_true_all, y_train_pred_all)
+    #     model.eval()
+    #     with torch.no_grad():
+    #         logits = model(X_test_tensor.to(device))
+    #         y_test_pred = torch.argmax(logits, dim=1).cpu().numpy()
+    #         test_acc = accuracy_score(y_test, y_test_pred)
+    #     print(f"Epoch {epoch+1}, Loss: {total_loss:.4f}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}")
 
-    #关闭load线程
-    train_loader._iterator._shutdown_workers()
+    # #关闭load线程
+    # train_loader._iterator._shutdown_workers()
     
-    # 保存模型
-    torch.save(model.state_dict(), "mlp_model.pth")
-    print("模型已保存为 mlp_model.pth")
-    print("完成训练")
+    # # 保存模型
+    # torch.save(model.state_dict(), "mlp_model.pth")
+    # print("模型已保存为 mlp_model.pth")
+    # print("完成训练")
 
-    # 推理与评估
-    model.eval()
-    with torch.no_grad():
-        logits = model(X_test_tensor.to(device))
-        y_pred = torch.argmax(logits, dim=1).cpu().numpy()
+    # # 推理与评估
+    # model.eval()
+    # with torch.no_grad():
+    #     logits = model(X_test_tensor.to(device))
+    #     y_pred = torch.argmax(logits, dim=1).cpu().numpy()
 
-    print("\n分类报告:")
-    print(classification_report(y_test, y_pred, target_names=le.classes_,digits=4))
-    print("\n混淆矩阵:")
-    print(confusion_matrix(y_test, y_pred))
+    # print("\n分类报告:")
+    # print(classification_report(y_test, y_pred, target_names=le.classes_,digits=4))
+    # print("\n混淆矩阵:")
+    # print(confusion_matrix(y_test, y_pred))
+    
+    joblib.dump(model, 'model/model.pkl')
+    joblib.dump(pca, 'model/pca.pkl')
+    joblib.dump(le, 'model/label_encoder.pkl')
+    joblib.dump(char2idx, 'model/char2idx.pkl')
+    np.save('model/char_embeddings.npy', char_embeddings)
+    joblib.dump(scaler, 'model/scaler.pkl')
     
