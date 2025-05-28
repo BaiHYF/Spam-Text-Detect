@@ -151,6 +151,7 @@ if __name__ == "__main__":
         print(classification_report(y_test, y_pred, target_names=le.classes_))
         print("\n混淆矩阵:")
         print(confusion_matrix(y_test, y_pred))
+<<<<<<< HEAD
         
         os.makedirs("model", exist_ok=True)
 
@@ -186,6 +187,34 @@ if __name__ == "__main__":
         # print("类别权重为",class_weights)
 
 
+=======
+        #######CPU版本#####END
+    else:
+        ###########GPU训练
+        # 设置随机种子
+        torch.manual_seed(42)
+        np.random.seed(42)
+        load_existing_model=False
+        #torch.set_float32_matmul_precision('high')  #在 float32 矩阵乘法时，使用 TensorFloat32（TF32） 精度，能显著加快训练速度而不会明显影响模型精度。
+        
+        
+        # 归一化
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+        # 转为 Tensor
+        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+        y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+        X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+        y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+        
+        # 计算类别权重，原理同oversampleing
+        # class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
+        # class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
+        # print("类别权重为",class_weights)
+
+
+>>>>>>> 124d83834e272c6190b64abd3a6f5e364c9d8387
         # 数据加载器
         train_loader = DataLoader(
         TensorDataset(X_train_tensor, y_train_tensor),
