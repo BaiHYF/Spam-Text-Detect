@@ -1,6 +1,9 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import math
+import numpy as np
+from collections import Counter
+import re
 
 #信息熵
 def text_entropy(text):
@@ -47,7 +50,7 @@ def self_similarity(text):
 
 
 
-def text_to_embedding(text):
+def text_to_embedding(text, pca, char_embeddings, char2idx):
     # 初始化PCA字向量的均值（语义部分）
     vec_semantic = np.zeros(pca.n_components_)
     # 1. 提取有效汉字并计算语义向量
