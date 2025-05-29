@@ -4,13 +4,26 @@
 - Author: BaiHYF <baiheyufei@gmail.com>
 - Date:   Mon May 19 2025
 
+- Author: BIGHH <1448545037@qq.com>
+- Date:   Mon May 28 2025
+
 包含汉字编码生成功能，支持：
 - 拼音编码生成
 - 字形编码生成
 - 完整字符编码组合
 
 Classes:
-    ChineseCharacterCoder
+    ChineseCharacterCoder - 核心编码器类
+        Methods:
+            generate_pronunciation_code(hanzi) -> str
+            generate_glyph_code(hanzi) -> str  
+            generate_character_code(hanzi) -> str
+            split_pinyin(hanzi) -> tuple
+
+    
+依赖库:
+- pypinyin: 汉字拼音转换
+- four_corner_method: 四角号码提取
 
 大部分程序参考了 《数据科学与工程实战》王昌栋，赖剑煌 第 4.3.1 节的代码实现  
 """
@@ -288,4 +301,5 @@ class ChineseCharacterCoder:
 
     def generate_character_code(self, hanzi):
         return self.generate_pronunciation_code(hanzi) + self.generate_glyph_code(hanzi)
+
 

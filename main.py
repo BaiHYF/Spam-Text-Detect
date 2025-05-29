@@ -24,7 +24,11 @@
 """
 
 from data_processing import *
-from similarity_matrix import compute_sim_mat, load_sim_mat
+from character_coder import *
+from similarity_matrix import *
+from text_to_embedding import *
+
+
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
@@ -45,20 +49,23 @@ from imblearn.over_sampling import RandomOverSampler
 from sklearn.metrics import confusion_matrix, classification_report
 import joblib
 from joblib import Parallel, delayed
-from text_to_embedding import text_to_embedding
 import os
+from sklearn.linear_model import LogisticRegression
 
 if __name__ == "__main__":
 
     # 使用 GPU（如可用）
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1") 
     print(f"使用设备: {device}")
 
     # 1. 加载标签和文本（数据集划分）
     #dataset 16k  dataset_new 800k
     # tags, texts = divide_dataset("Data/dataset_new.txt", lines=500000)
+    #dataset_path = "Data/merged_dataset.txt"
     dataset_path = "Data/dataset.txt"
-    dataset_lines = 10000
+    #dataset_path = "Data/dataset_new.txt"
+    dataset_lines = 800000
     tags, texts = divide_dataset(dataset_path, lines=dataset_lines)
     
     print(f"Using  dataset: {dataset_path}, {dataset_lines} lines")
@@ -85,7 +92,7 @@ if __name__ == "__main__":
     try:
         sim_mat = load_sim_mat("Data/similarity_matrix.pkl")
     except FileNotFoundError:
-        sim_mat = compute_sim_mat(chinese_chars, char_codes)
+        sim_mat = compute_sim_mat(chinese_chars, char_codes,"Data/similarity_matrix.pkl")
     
     # 4. 对相似度矩阵进行PCA降维（得到每个汉字的向量表示）
     pca = PCA(n_components=256) #128，192,256
@@ -94,7 +101,7 @@ if __name__ == "__main__":
     # 建立汉字到向量索引的映射
     char2idx = {char: i for i, char in enumerate(chinese_chars)}
     
-    # 5. 生成句子向量
+    # 5. 生成文本向量
     X = np.array(Parallel(n_jobs=32)(delayed(text_to_embedding)(text, pca, char_embeddings, char2idx) for text in tqdm(texts, desc="并行向量化")))
     print(X.shape)
     
@@ -123,6 +130,7 @@ if __name__ == "__main__":
     print("完成样本平衡")
 
     if device == torch.device("cpu"):
+        print("使用CPU训练")
         #######CPU版本
         model = make_pipeline(
             StandardScaler(),
@@ -136,22 +144,17 @@ if __name__ == "__main__":
                 random_state=42,
                 verbose=True
             )
+            #LogisticRegression(max_iter=100, class_weight='balanced')
         )
-
-
-        
         model.fit(X_train, y_train)
-        
         print("完成训练")
-        
         scaler = model.named_steps['standardscaler']
         y_pred = model.predict(X_test)
-
         print("\n分类报告:")
-        print(classification_report(y_test, y_pred, target_names=le.classes_))
+        print(classification_report(y_test, y_pred, target_names=le.classes_,digits=4))
         print("\n混淆矩阵:")
         print(confusion_matrix(y_test, y_pred))
-<<<<<<< HEAD
+
         
         os.makedirs("model", exist_ok=True)
 
@@ -161,8 +164,10 @@ if __name__ == "__main__":
         joblib.dump(char2idx, 'model/char2idx.pkl')
         np.save('model/char_embeddings.npy', char_embeddings)
         joblib.dump(scaler, 'model/scaler.pkl')
+        
         #######CPU版本#####END
     else:
+        print("使用GPU训练")
         ###########GPU训练
         # 设置随机种子
         torch.manual_seed(42)
@@ -185,36 +190,7 @@ if __name__ == "__main__":
         # class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
         # class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
         # print("类别权重为",class_weights)
-
-
-=======
-        #######CPU版本#####END
-    else:
-        ###########GPU训练
-        # 设置随机种子
-        torch.manual_seed(42)
-        np.random.seed(42)
-        load_existing_model=False
-        #torch.set_float32_matmul_precision('high')  #在 float32 矩阵乘法时，使用 TensorFloat32（TF32） 精度，能显著加快训练速度而不会明显影响模型精度。
         
-        
-        # 归一化
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
-        # 转为 Tensor
-        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-        y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-        X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
-        y_test_tensor = torch.tensor(y_test, dtype=torch.long)
-        
-        # 计算类别权重，原理同oversampleing
-        # class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train), y=y_train)
-        # class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
-        # print("类别权重为",class_weights)
-
-
->>>>>>> 124d83834e272c6190b64abd3a6f5e364c9d8387
         # 数据加载器
         train_loader = DataLoader(
         TensorDataset(X_train_tensor, y_train_tensor),
@@ -258,7 +234,7 @@ if __name__ == "__main__":
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
         # 训练模型
-        for epoch in range(10):
+        for epoch in range(25):
             model.train()
             total_loss = 0
             y_train_pred_all = []

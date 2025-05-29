@@ -4,6 +4,9 @@
 - Author: BaiHYF <baiheyufei@gmail.com>
 - Date:   Mon May 19 2025
 
+- Author: BIGHH <1448545037@qq.com>
+- Date:   Mon May 28 2025
+
 包含以下功能：
 - 数据集划分
 - 汉字统计与编码生成
@@ -36,10 +39,7 @@ def divide_dataset(filename, lines=10000):
     """
     with open (filename, "r", encoding="utf-8") as f:
         text_data = f.readlines()
-
     subset = text_data[:lines]
-    
-    #dataset = [s.strip().split("\t") for s in subset]
     dataset = []
     for i, line in enumerate(subset):
         parts = line.strip().split("\t")
@@ -97,6 +97,7 @@ def count_chinese_characters(content, output_file_path):
 
     return chinese_characters, chinese_characters_count, chinese_characters_code
 
+
 def load_chinese_characters(filename):
     """
     加载预存的汉字编码数据
@@ -123,4 +124,3 @@ def load_chinese_characters(filename):
         chinese_characters_count[char] = count
 
     return chinese_characters, chinese_characters_count, chinese_characters_code
-

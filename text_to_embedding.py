@@ -1,3 +1,32 @@
+"""
+文本特征提取模块 (Text Feature Extraction)
+
+Authors:
+- [BIGHH] <[1448545037@qq.com]> (2025-05-28) 
+
+主要功能:
+- 计算文本的信息熵（字符级）
+- 计算文本的自相似性得分
+- 生成融合语义和结构特征的文本嵌入向量
+- 支持中文文本处理
+
+核心算法:
+- 信息熵：基于字符频率分布计算
+- 自相似性：动态分块+字符级TF-IDF+余弦相似度矩阵
+- 文本嵌入：PCA降维字向量均值 + 特殊符号特征 + 自相似性 + 信息熵
+
+依赖库:
+- sklearn: 用于TF-IDF和余弦相似度计算
+- numpy: 数值计算
+- re: 正则表达式处理
+
+Functions:
+    text_entropy(text) -> float
+    self_similarity(text) -> float
+    text_to_embedding(text, pca, char_embeddings, char2idx) -> np.ndarray
+"""
+
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import math
@@ -64,7 +93,7 @@ def text_to_embedding(text, pca, char_embeddings, char2idx):
     # 3. 融合语义向量和符号特征
     vec_combined = np.concatenate([
         vec_semantic,               # PCA字向量均值（语义）
-        [special_ratio],           # 特殊符号占比（结构）
+        [special_ratio],           # 特殊符号占比
         [len(special_chars)],      # 绝对符号数量
         [self_similarity(text)],    # 自相似性
         [text_entropy(text)],       #信息熵
