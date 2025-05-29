@@ -1,4 +1,5 @@
 Data/similarity_matrix.pkl
+Data/similarity_matrix_light.pkl
 __pycache__/
 *.pyc
 **/*.pyc
