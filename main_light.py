@@ -144,6 +144,7 @@ if __name__ == "__main__":
         print(confusion_matrix(y_test, y_pred))
         #######CPU版本#####END
 
+    os.makedirs("model", exist_ok=True)
     joblib.dump(model, 'model/model.pkl')
     joblib.dump(pca, 'model/pca.pkl')
     joblib.dump(le, 'model/label_encoder.pkl')
