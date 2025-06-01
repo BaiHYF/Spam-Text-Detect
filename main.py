@@ -51,21 +51,25 @@ import joblib
 from joblib import Parallel, delayed
 import os
 from sklearn.linear_model import LogisticRegression
+'''
+仅修改此处变量
+'''
+dataset_path = "Data/dataset.txt"       #数据集路径
+dataset_lines = 800000                  #数据集大小
+device = torch.device("cuda:1")         #GPU使用cuda，cpu使用cpu
+'''
+仅修改此处变量
+'''
+
 
 if __name__ == "__main__":
 
     # 使用 GPU（如可用）
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cuda:1") 
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:1") 
     print(f"使用设备: {device}")
 
     # 1. 加载标签和文本（数据集划分）
-    #dataset 16k  dataset_new 800k
-    # tags, texts = divide_dataset("Data/dataset_new.txt", lines=500000)
-    #dataset_path = "Data/merged_dataset.txt"
-    dataset_path = "Data/dataset.txt"
-    #dataset_path = "Data/dataset_new.txt"
-    dataset_lines = 800000
     tags, texts = divide_dataset(dataset_path, lines=dataset_lines)
     
     print(f"Using  dataset: {dataset_path}, {dataset_lines} lines")
